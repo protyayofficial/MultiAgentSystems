@@ -1,20 +1,21 @@
-from typing import List,Any,Dict
+from typing import Dict, Any, List
+import asyncio
 import re
 
-from GDesigner.graph.node import Node
-from GDesigner.agents.agent_registry import AgentRegistry
-from GDesigner.llm.llm_registry import LLMRegistry
+from ..graph.node import Node
+from .agent_registry import AgentRegistry
+from GDesigner.llm import LLMRegistry
 from GDesigner.prompt.prompt_set_registry import PromptSetRegistry
 from GDesigner.tools.search.wiki import search_wiki_main
 
 def find_strings_between_pluses(text):
     return re.findall(r'\@(.*?)\@', text)
 
-@AgentRegistry.register('AnalyzeAgent')
+@AgentRegistry.register("AnalyzeAgent")
 class AnalyzeAgent(Node):
     def __init__(self, id: str | None =None, role:str = None,  domain: str = "", llm_name: str = "",):
         super().__init__(id, "AnalyzeAgent" ,domain, llm_name)
-        self.llm = LLMRegistry.get(llm_name)
+        self.llm = LLMRegistry.get(llm_name, model_name=llm_name)
         self.prompt_set = PromptSetRegistry.get(domain)
         self.role = self.prompt_set.get_role() if role is None else role
         self.constraint = self.prompt_set.get_analyze_constraint(self.role)

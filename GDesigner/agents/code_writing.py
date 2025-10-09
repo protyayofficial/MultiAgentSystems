@@ -1,16 +1,16 @@
 from typing import List,Any,Dict
 
-from GDesigner.graph.node import Node
-from GDesigner.agents.agent_registry import AgentRegistry
-from GDesigner.llm.llm_registry import LLMRegistry
-from GDesigner.prompt.prompt_set_registry import PromptSetRegistry
-from GDesigner.tools.coding.python_executor import PyExecutor
+from ..graph.node import Node
+from .agent_registry import AgentRegistry
+from ..llm.llm_registry import LLMRegistry
+from ..prompt.prompt_set_registry import PromptSetRegistry
+from ..tools.coding.python_executor import PyExecutor
 
-@AgentRegistry.register('CodeWriting')
+@AgentRegistry.register("CodeWriter")
 class CodeWriting(Node):
     def __init__(self, id: str | None =None, role:str = None ,domain: str = "", llm_name: str = "",):
         super().__init__(id, "CodeWriting" ,domain, llm_name)
-        self.llm = LLMRegistry.get(llm_name)
+        self.llm = LLMRegistry.get(llm_name, model_name=llm_name)
         self.prompt_set = PromptSetRegistry.get(domain)
         self.role = self.prompt_set.get_role() if role is None else role
         self.constraint = self.prompt_set.get_constraint(self.role) 

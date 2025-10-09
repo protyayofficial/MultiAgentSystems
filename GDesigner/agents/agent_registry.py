@@ -1,7 +1,7 @@
 from typing import Type
 from class_registry import ClassRegistry
 
-from GDesigner.graph import Node
+from ..graph.node import Node
 
 
 class AgentRegistry:
