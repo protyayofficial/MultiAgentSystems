@@ -34,8 +34,9 @@ from bs4 import BeautifulSoup
 from pylatexenc.latex2text import LatexNodes2Text
 from pptx import Presentation
 
-from GDesigner.llm import VisualLLMRegistry
-from GDesigner.utils.log import logger
+# from GDesigner.llm import VisualLLMRegistry # FIXME: This import is broken
+from GDesigner.llm import LLMRegistry
+# from GDesigner.utils.log import logger
 from GDesigner.utils.globals import Cost
 
 from dotenv import load_dotenv
@@ -59,12 +60,12 @@ class Reader(ABC):
 class TXTReader(Reader):
     def parse(self, file_path: Path) -> str:
         content = charset_normalizer.from_path(file_path).best()
-        logger.info(f"Reading TXT file from {file_path} using encoding '{content.encoding}.'")
+        # logger.info(f"Reading TXT file from {file_path} using encoding '{content.encoding}.'")
         return str(content)
     
 class PDFReader(Reader):
     def parse(self, file_path: Path) -> str:
-        logger.info(f"Reading PDF file from {file_path}.")
+        # logger.info(f"Reading PDF file from {file_path}.")
         content = PyPDF2.PdfReader(file_path)
         text = ""
         for page_idx in range(len(content.pages)):
@@ -73,7 +74,7 @@ class PDFReader(Reader):
     
 class DOCXReader(Reader):
     def parse(self, file_path: Path) -> str:
-        logger.info(f"Reading DOCX file from {file_path}.")
+        # logger.info(f"Reading DOCX file from {file_path}.")
         content = docx.Document(str(file_path))
         text = ""
         for i, para in enumerate(content.paragraphs):
@@ -82,7 +83,7 @@ class DOCXReader(Reader):
 
 class JSONReader(Reader):
     def parse_file(file_path: Path) -> list:
-        logger.info(f"Reading JSON file from {file_path}.")
+        # logger.info(f"Reading JSON file from {file_path}.")
         try:
             with open(file_path, "r") as f:
                 data = json.load(f)
@@ -92,7 +93,7 @@ class JSONReader(Reader):
             return []
     
     def parse(self, file_path: Path) -> str:
-        logger.info(f"Reading JSON file from {file_path}.")
+        # logger.info(f"Reading JSON file from {file_path}.")
         try:
             with open(file_path, "r") as f:
                 data = json.load(f)
@@ -103,22 +104,40 @@ class JSONReader(Reader):
         
 class JSONLReader(Reader):
     def parse_file(file_path: Path) -> list:
-        logger.info(f"Reading JSON Lines file from {file_path}.")
+        # logger.info(f"Reading JSON Lines file from {file_path}.")
         with open(file_path, "r",encoding='utf-8') as f:
-            lines = [json.loads(line) for line in f]
+            lines = []
+            for line in f:
+                try:
+                    clean_line = line.strip()
+                    if clean_line.endswith(','):
+                        clean_line = clean_line[:-1]
+                    if clean_line:
+                        lines.append(json.loads(clean_line))
+                except json.JSONDecodeError:
+                    print(f"Warning: Skipping malformed JSON line in {file_path}: {line.strip()}")
             #text = '\n'.join([str(line) for line in lines])
         return lines #text
     
     def parse(file_path: Path) -> str:
-        logger.info(f"Reading JSON Lines file from {file_path}.")
+        # logger.info(f"Reading JSON Lines file from {file_path}.")
         with open(file_path, "r",encoding='utf-8') as f:
-            lines = [json.loads(line) for line in f]
+            lines = []
+            for line in f:
+                try:
+                    clean_line = line.strip()
+                    if clean_line.endswith(','):
+                        clean_line = clean_line[:-1]
+                    if clean_line:
+                        lines.append(json.loads(clean_line))
+                except json.JSONDecodeError:
+                    print(f"Warning: Skipping malformed JSON line in {file_path}: {line.strip()}")
             text = '\n'.join([str(line) for line in lines])
         return text
 
 class XMLReader(Reader):
     def parse(self, file_path: Path) -> str:
-        logger.info(f"Reading XML file from {file_path}.")
+        # logger.info(f"Reading XML file from {file_path}.")
         with open(file_path, "r") as f:
             data = BeautifulSoup(f, "xml")
             text = data.get_text()
@@ -126,7 +145,7 @@ class XMLReader(Reader):
 
 class YAMLReader(Reader):
     def parse(self, file_path: Path, return_str=True) -> Union[str, Any]:
-        logger.info(f"Reading YAML file from {file_path}.")
+        # logger.info(f"Reading YAML file from {file_path}.")
         with open(file_path, "r") as f:
             data = yaml.load(f, Loader=yaml.FullLoader)
             text = str(data)
@@ -137,7 +156,7 @@ class YAMLReader(Reader):
     
 class HTMLReader(Reader):
     def parse(self, file_path: Path) -> str:
-        logger.info(f"Reading HTML file from {file_path}.")
+        # logger.info(f"Reading HTML file from {file_path}.")
         with open(file_path, "r") as f:
             data = BeautifulSoup(f, "html.parser")
             text = data.get_text()
@@ -145,7 +164,7 @@ class HTMLReader(Reader):
     
 class MarkdownReader(Reader):
     def parse(self, file_path: Path) -> str:
-        logger.info(f"Reading Markdown file from {file_path}.")
+        # logger.info(f"Reading Markdown file from {file_path}.")
         with open(file_path, "r") as f:
             data = markdown.markdown(f.read())
             text = "".join(BeautifulSoup(data, "html.parser").findAll(string=True))
@@ -153,7 +172,7 @@ class MarkdownReader(Reader):
 
 class LaTexReader(Reader):
     def parse(self, file_path: Path) -> str:
-        logger.info(f"Reading LaTex file from {file_path}.")
+        # logger.info(f"Reading LaTex file from {file_path}.")
         with open(file_path, "r") as f:
             data = f.read()
         text = LatexNodes2Text().latex_to_text(data)
@@ -164,7 +183,7 @@ class LaTexReader(Reader):
 class AudioReader(Reader):
     @staticmethod
     def parse(file_path: Path) -> str:
-        logger.info(f"Transcribing audio file from {file_path}.")
+        # logger.info(f"Transcribing audio file from {file_path}.")
         client = OpenAI(api_key=OPENAI_API_KEY)
         try:
             client = OpenAI()
@@ -175,12 +194,12 @@ class AudioReader(Reader):
                 )
             return transcript.text
         except Exception as e:
-            logger.info(f"Error transcribing audio file: {e}")
+            # logger.info(f"Error transcribing audio file: {e}")
             return "Error transcribing audio file."
 
 class PPTXReader(Reader): 
     def parse(self, file_path: Path) -> str:
-        logger.info(f"Reading PowerPoint file from {file_path}.")
+        # logger.info(f"Reading PowerPoint file from {file_path}.")
         try:
             pres = Presentation(str(file_path))
             text = []
@@ -191,12 +210,12 @@ class PPTXReader(Reader):
                         text.append(shape.text)
             return "\n".join(text)
         except Exception as e:
-            logger.info(f"Error reading PowerPoint file: {e}")
+            # logger.info(f"Error reading PowerPoint file: {e}")
             return "Error reading PowerPoint file."
 
 class ExcelReader(Reader):
     def parse(self, file_path: Path) -> str:
-        logger.info(f"Reading Excel file from {file_path}.")
+        # logger.info(f"Reading Excel file from {file_path}.")
         try:
             excel_data = pd.read_excel(file_path, sheet_name=None)
 
@@ -206,12 +225,12 @@ class ExcelReader(Reader):
 
             return "\n".join(all_sheets_text)
         except Exception as e:
-            logger.info(f"Error reading Excel file: {e}")
+            # logger.info(f"Error reading Excel file: {e}")
             return "Error reading Excel file."
 
 class XLSXReader(Reader):
     def parse(self, file_path: Path) -> str:
-        logger.info(f"Reading XLSX file from {file_path}.")
+        # logger.info(f"Reading XLSX file from {file_path}.")
         workbook = openpyxl.load_workbook(file_path, data_only=True)
         text = ""
 
@@ -226,7 +245,7 @@ class XLSXReader(Reader):
 class ZipReader(Reader):
     def parse(self, file_path: Path) -> str:
         #only support files that can be represented as text
-        logger.info(f"Reading ZIP file from {file_path}.")
+        # logger.info(f"Reading ZIP file from {file_path}.")
         try:
             file_content = ""
             with zipfile.ZipFile(file_path, 'r') as zip_ref:
@@ -238,15 +257,17 @@ class ZipReader(Reader):
             return file_content
         
         except zipfile.BadZipFile:
-            logger.info("Invalid ZIP file.")
+            # logger.info("Invalid ZIP file.")
+            pass
 
         except Exception as e:
-            logger.info(f"Error reading ZIP file: {e}")
+            # logger.info(f"Error reading ZIP file: {e}")
+            pass
 
 
 class PythonReader(Reader):
     def parse(self, file_path: Path) -> str:
-        logger.info(f"Executing and reading Python file from {file_path}.")
+        # logger.info(f"Executing and reading Python file from {file_path}.")
         execution_result = ""
         error = ""
         file_content = ""
@@ -256,57 +277,60 @@ class PythonReader(Reader):
         except subprocess.CalledProcessError as e:
             error = "Error:\n" + e.stderr
         except Exception as e:
-            logger.info(f"Error executing Python file: {e}")
+            # logger.error(f"Failed to execute Python file: {e}")
+            return None
 
         try:
             with open(file_path, "r") as file:
                 file_content = "\nFile Content:\n" + file.read()
         except Exception as e:
-            logger.info(f"Error reading Python file: {e}")
+            # logger.info(f"Error reading Python file: {e}")
+            pass
         return file_content, execution_result, error
 
 
-class IMGReader(Reader):
-    def parse(self, file_path: Path, task: str = "Describe this image as detail as possible." ) -> str:
-        logger.info(f"Reading image file from {file_path}.")
-        runner = VisualLLMRegistry.get()
-        answer = runner.gen(task, file_path)
-        return answer
+# FIXME: The following classes are commented out due to a missing 'VisualLLMRegistry' dependency.
+# class IMGReader(Reader):
+#     def parse(self, file_path: Path, task: str = "Describe this image as detail as possible." ) -> str:
+#         # logger.info(f"Reading image file from {file_path}.")
+#         runner = VisualLLMRegistry.get()
+#         answer = runner.gen(task, file_path)
+#         return answer
 
-class VideoReader(Reader): 
-    def parse(self, file_path: Path, task: str = "Describe this image as detail as possible.", frame_interval: int = 30, used_audio: bool = True) -> list:
-        logger.info(f"Processing video file from {file_path} with frame interval {frame_interval}.")
-        runner = VisualLLMRegistry.get()
-        answer = runner.gen_video(task, file_path, frame_interval)
-
-        if used_audio:
-            audio_content = AudioReader.parse(file_path)
-
-        return answer + "The audio includes:\n" + audio_content
+# class VideoReader(Reader): 
+#     def parse(self, file_path: Path, task: str = "Describe this image as detail as possible.", frame_interval: int = 30, used_audio: bool = True) -> list:
+#         # logger.info(f"Processing video file from {file_path} with frame interval {frame_interval}.")
+#         runner = VisualLLMRegistry.get()
+#         answer = runner.gen_video(task, file_path, frame_interval)
+# 
+#         if used_audio:
+#             audio_content = AudioReader.parse(file_path)
+# 
+#         return answer + "The audio includes:\n" + audio_content
 
 
 # Support 41 kinds of files.
 READER_MAP = { 
-    ".png": IMGReader(),
-    ".jpg": IMGReader(),
-    ".jpeg": IMGReader(),
-    ".gif": IMGReader(),
-    ".bmp": IMGReader(),
-    ".tiff": IMGReader(),
-    ".tif": IMGReader(),
-    ".webp": IMGReader(),
+    # ".png": IMGReader(),
+    # ".jpg": IMGReader(),
+    # ".jpeg": IMGReader(),
+    # ".gif": IMGReader(),
+    # ".bmp": IMGReader(),
+    # ".tiff": IMGReader(),
+    # ".tif": IMGReader(),
+    # ".webp": IMGReader(),
     ".mp3": AudioReader(),
     ".m4a": AudioReader(),
     ".wav": AudioReader(),
-    ".MOV": VideoReader(),
-    ".mp4": VideoReader(),
-    ".mov": VideoReader(),
-    ".avi": VideoReader(),
-    ".mpg": VideoReader(),
-    ".mpeg": VideoReader(),
-    ".wmv": VideoReader(),
-    ".flv": VideoReader(),
-    ".webm": VideoReader(),
+    # ".MOV": VideoReader(),
+    # ".mp4": VideoReader(),
+    # ".mov": VideoReader(),
+    # ".avi": VideoReader(),
+    # ".mpg": VideoReader(),
+    # ".mpeg": VideoReader(),
+    # ".wmv": VideoReader(),
+    # ".flv": VideoReader(),
+    # ".webm": VideoReader(),
     ".zip": ZipReader(),
     ".pptx": PPTXReader(),
     ".xlsx": ExcelReader(),
@@ -332,9 +356,12 @@ READER_MAP = {
 }
     
 class FileReader:
+    def __init__(self):
+        self.reader = None
+
     def set_reader(self, suffix) -> None:
         self.reader = READER_MAP[suffix]
-        logger.info(f"Setting Reader to {type(self.reader).__name__}")
+        # logger.info(f"Setting Reader to {type(self.reader).__name__}")
 
     def read_file(self, file_path: Path, task="describe the file") -> str:
         suffix = '.' + file_path.split(".")[-1]
@@ -343,7 +370,7 @@ class FileReader:
             file_content = self.reader.parse(file_path, task)
         else:
             file_content = self.reader.parse(file_path)
-        logger.info(f"Reading file {file_path} using {type(self.reader).__name__}")
+        # logger.info(f"Reading file {file_path} using {type(self.reader).__name__}")
         return file_content
     
 

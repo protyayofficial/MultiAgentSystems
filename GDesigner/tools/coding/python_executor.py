@@ -3,10 +3,10 @@
 
 import ast
 import astunparse
-from typing import List
+from typing import List, Dict, Any, Tuple, Optional
 
-from GDesigner.tools.coding.executor_utils import function_with_timeout
-from GDesigner.tools.coding.executor_types import ExecuteResult, Executor
+from .executor_utils import function_with_timeout
+from .executor_types import ExecuteResult, Executor
 
 
 def get_call_str(assert_statement: str) -> str:
@@ -41,6 +41,9 @@ def execute_code_get_return(code: str):
         return f"Error occurred: {e}"
 
 class PyExecutor(Executor):
+    def __init__(self, get_answer_expr: str = "solution()"):
+        self.get_answer_expr = get_answer_expr
+
     def execute(self, func: str, tests: List[str], timeout: int = 5, verbose: bool = True) -> ExecuteResult:
         # Combine function code and assert statement
         imports = 'from typing import *'
