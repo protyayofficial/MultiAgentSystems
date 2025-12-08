@@ -16,6 +16,10 @@ test.py
 
 token/
 attack/
+result/
+result_*/
+logs/
+hf_cache/
 log/
 ps_list/
 paper/

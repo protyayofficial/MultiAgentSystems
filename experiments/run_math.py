@@ -265,9 +265,8 @@ async def run_gtd_experiment(args, dataset):
     agent_profiles = [prompt_set.get_description(name) for name in agent_names_list]
     node_features_base = torch.tensor([get_sentence_embedding(p) for p in agent_profiles]).float().to(device)
 
-    result_dir = Path(f"{GDesigner_ROOT}/result/gtd_{args.domain}")
-    result_dir.mkdir(parents=True, exist_ok=True)
-    result_file = result_dir / f"{args.llm_name}_{time.strftime('%Y%m%d-%H%M%S')}.json"
+    result_file = Path(GDesigner_ROOT, "result", f"gtd_{args.domain}", f"{args.llm_name.replace('/', '_')}_{time.strftime('%Y%m%d-%H%M%S')}.json")
+    result_file.parent.mkdir(parents=True, exist_ok=True)
 
     total_solved, total_executed = 0, 0
     for record in dataset:

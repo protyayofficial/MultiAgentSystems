@@ -20,6 +20,7 @@ from datasets.mmlu_dataset import mmlu_data_process, mmlu_get_predict, mmlu_chec
 
 from GDesigner.gdt.gtd_framework import GTDFramework
 from GDesigner.gdt.proxy_reward_model import ProxyRewardModel
+from GDesigner.llm.llm_registry import get_llm_backend
 from GDesigner.llm.profile_embedding import get_sentence_embedding
 from GDesigner.prompt.prompt_set_registry import PromptSetRegistry
 from torch.utils.data import DataLoader, TensorDataset
@@ -81,8 +82,9 @@ def parse_args():
 async def generate_initial_dataset(args, dataset):
     agent_names_list = [name for name, num in zip(args.agent_names, args.agent_nums) for _ in range(num)]
     num_nodes = len(agent_names_list)
-    prompt_set = PromptSetRegistry.get(args.domain)
+    prompt_set = PromptSetRegistry.get("mmlu")
     agent_profiles = [prompt_set.get_description(name) for name in agent_names_list]
+    # print(agent_profiles)
     node_features_base = [get_sentence_embedding(p) for p in agent_profiles]
     
     def generate_static_topologies(n):
@@ -231,7 +233,7 @@ async def run_gtd_experiment(args, dataset):
     agent_profiles = [prompt_set.get_description(name) for name in agent_names_list]
     node_features_base = torch.tensor([get_sentence_embedding(p) for p in agent_profiles]).float().to(device)
 
-    result_file = Path(GDesigner_ROOT, "result", f"gtd_{args.domain}", f"{args.llm_name}_{time.strftime('%Y%m%d-%H%M%S')}.json")
+    result_file = Path(GDesigner_ROOT, "result", f"gtd_{args.domain}", f"{args.llm_name.replace('/', '_')}_{time.strftime('%Y%m%d-%H%M%S')}.json")
     result_file.parent.mkdir(parents=True, exist_ok=True)
 
     total_solved, total_executed = 0, 0
@@ -258,6 +260,8 @@ async def run_gtd_experiment(args, dataset):
 
 async def main():
     args = parse_args()
+    backend = get_llm_backend(args.llm_name)
+    print(f"Using LLM backend: {backend} for model: {args.llm_name}")
     dataset = JSONLReader.parse_file(args.dataset_json)
     dataset = mmlu_data_process(dataset)
     

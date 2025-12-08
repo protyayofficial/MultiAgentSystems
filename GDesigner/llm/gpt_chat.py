@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from .format import Message
 from .price import cost_count
 from .llm import LLM
-from .llm_registry import LLMRegistry
+# from .llm_registry import LLMRegistry
 
 
 OPENAI_API_KEYS = ['']
@@ -155,25 +155,25 @@ async def achat(model_name: str, messages: List[Message]):
                 return completion
 
 
-@LLMRegistry.register('gpt-4o')
-@LLMRegistry.register('gpt-4o-mini')
-@LLMRegistry.register('gpt-4-turbo')
-@LLMRegistry.register("gpt-4-0125-preview")
-@LLMRegistry.register("gpt-4-1106-preview")
-@LLMRegistry.register("gpt-4-vision-preview")
-@LLMRegistry.register("gpt-4-0314")
-@LLMRegistry.register("gpt-4-32k")
-@LLMRegistry.register("gpt-4-32k-0314")
-@LLMRegistry.register("gpt-4-0613")
-@LLMRegistry.register("gpt-3.5-turbo-0125")
-@LLMRegistry.register("gpt-3.5-turbo-1106")
-@LLMRegistry.register("gpt-3.5-turbo-instruct")
-@LLMRegistry.register("gpt-3.5-turbo-0301")
-@LLMRegistry.register("gpt-3.5-turbo-0613")
-@LLMRegistry.register("gpt-3.5-turbo-16k-0613")
-@LLMRegistry.register("gpt-3.5-turbo")
-@LLMRegistry.register("gpt-4")
-@LLMRegistry.register("Qwen/Qwen3-8B")
+# @LLMRegistry.register('gpt-4o')
+# @LLMRegistry.register('gpt-4o-mini')
+# @LLMRegistry.register('gpt-4-turbo')
+# @LLMRegistry.register("gpt-4-0125-preview")
+# @LLMRegistry.register("gpt-4-1106-preview")
+# @LLMRegistry.register("gpt-4-vision-preview")
+# @LLMRegistry.register("gpt-4-0314")
+# @LLMRegistry.register("gpt-4-32k")
+# @LLMRegistry.register("gpt-4-32k-0314")
+# @LLMRegistry.register("gpt-4-0613")
+# @LLMRegistry.register("gpt-3.5-turbo-0125")
+# @LLMRegistry.register("gpt-3.5-turbo-1106")
+# @LLMRegistry.register("gpt-3.5-turbo-instruct")
+# @LLMRegistry.register("gpt-3.5-turbo-0301")
+# @LLMRegistry.register("gpt-3.5-turbo-0613")
+# @LLMRegistry.register("gpt-3.5-turbo-16k-0613")
+# @LLMRegistry.register("gpt-3.5-turbo")
+# @LLMRegistry.register("gpt-4")
+# @LLMRegistry.register("Qwen/Qwen3-8B")
 class GPTChat(LLM):
 
     def __init__(self, model_name: str, temperature: float = 0.7, top_p: float = 1.0, max_tokens: int = 1024):

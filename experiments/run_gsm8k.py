@@ -299,9 +299,8 @@ async def run_gtd_experiment(args, dataset):
     # Result file setup
     current_time = Time.instance().value or time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
     Time.instance().value = current_time
-    result_dir = Path(f"{GDesigner_ROOT}/result/gtd_{args.domain}")
-    result_dir.mkdir(parents=True, exist_ok=True)
-    result_file = result_dir / f"{args.llm_name}_{current_time}.json"
+    result_file = Path(GDesigner_ROOT, "result", f"gtd_{args.domain}", f"{args.llm_name}_{time.strftime('%Y%m%d-%H%M%S')}.json")
+    result_file.parent.mkdir(parents=True, exist_ok=True)
 
     # 3. Batch Processing Loop
     num_batches = int(len(dataset) / args.batch_size)

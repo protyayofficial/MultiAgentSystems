@@ -4,7 +4,7 @@ set -e
 set -x
 
 # --- Configuration ---
-LLM_NAME="gpt-4o-mini"
+LLM_NAME="Qwen/Qwen3-4B-Thinking-2507"
 DOMAIN="svamp"
 AGENT_NAMES="MathSolver"
 AGENT_NUMS=4
@@ -14,7 +14,7 @@ BATCH_SIZE=2
 TRAIN_DATASET_JSON="datasets/SVAMP/SVAMP_train.jsonl"  # For Phase 1 & 2: data generation + training
 TEST_DATASET_JSON="datasets/SVAMP/SVAMP_test.jsonl"    # For Phase 3: evaluation
 
-OUTPUT_DIR="result/gtd_svamp"
+OUTPUT_DIR="result_Qwen3_8B/gtd_svamp"
 
 mkdir -p "$OUTPUT_DIR"
 
@@ -25,7 +25,7 @@ echo "--- Running GTD Phase 1: Dataset Generation for SVAMP (TRAIN set) ---"
 python -m experiments.run_svamp \
   --llm_name "$LLM_NAME" \
   --domain "$DOMAIN" \
-  --agent_names "$AGENT_NAMES" \
+  --agent_names $AGENT_NAMES \
   --agent_nums $AGENT_NUMS \
   --dataset_json "$TRAIN_DATASET_JSON" \
   --mode GTD \
@@ -39,7 +39,7 @@ echo "--- Running GTD Phase 2: Model Training for SVAMP (TRAIN set) ---"
 python -m experiments.run_svamp \
   --llm_name "$LLM_NAME" \
   --domain "$DOMAIN" \
-  --agent_names "$AGENT_NAMES" \
+  --agent_names $AGENT_NAMES \
   --agent_nums $AGENT_NUMS \
   --dataset_json "$TRAIN_DATASET_JSON" \
   --mode GTD \
@@ -55,7 +55,7 @@ echo "--- Running GTD Phase 3: Inference for SVAMP (TEST set) ---"
 python -m experiments.run_svamp \
   --llm_name "$LLM_NAME" \
   --domain "$DOMAIN" \
-  --agent_names "$AGENT_NAMES" \
+  --agent_names $AGENT_NAMES \
   --agent_nums $AGENT_NUMS \
   --dataset_json "$TEST_DATASET_JSON" \
   --mode GTD \

@@ -1,95 +1,108 @@
 import re
+import signal
+import subprocess
+import tempfile
 from typing import Tuple
-def count_test_cases(test_code):
-    """Count the number of test cases (assertions) in the test code."""
-    try:
-        import ast
-        tree = ast.parse(test_code)
-        assert_count = 0
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Assert):
-                assert_count += 1
-        return assert_count
-    except:
-        return test_code.count('assert')
 
 
-def humaneval_data_process(dataset: list) -> list:
-    """
-    Processes the raw Humaneval dataset.
-    """
-    processed_dataset = []
-    for record in dataset:
-        processed_dataset.append({
-            "task": record["prompt"],
-            "test": record["test"],
-            "entry_point": record["entry_point"]
-        })
-    return processed_dataset
+def humaneval_data_process(dataset):
+    """Process HumanEval dataset into the required format."""
+    list_data_dict = []
+    for data in dataset:
+        item = {
+            "task": data.get("prompt", ""),
+            "test": data.get("test", ""),
+            "entry_point": data.get("entry_point", "")
+        }
+        list_data_dict.append(item)
+    return list_data_dict
 
-def humaneval_get_predict(model_response: str) -> str:
+
+def humaneval_get_predict(response: str) -> str:
     """
-    Extracts the Python code block from the model's response.
-    It looks for a ```python ... ``` block and extracts the content.
-    If not found, it assumes the entire response is the code.
+    Extract Python code from the model's response.
+    Handles markdown code blocks and plain code.
     """
-    if '```python' in model_response:
-        match = re.search(r"```python\n(.*?)\n```", model_response, re.DOTALL)
-        if match:
-            return match.group(1).strip()
+    if not response:
+        return ""
     
-    if '```' in model_response:
-        match = re.search(r"```\n(.*?)\n```", model_response, re.DOTALL)
-        if match:
-            return match.group(1).strip()
+    # Try to extract code from markdown code blocks
+    if "```python" in response:
+        # Extract code between ```python and ```
+        pattern = r"```python\n(.*?)```"
+        matches = re.findall(pattern, response, re.DOTALL)
+        if matches:
+            return matches[0].strip()
+    elif "```" in response:
+        # Extract code between ``` and ```
+        pattern = r"```\n(.*?)```"
+        matches = re.findall(pattern, response, re.DOTALL)
+        if matches:
+            return matches[0].strip()
     
-    # Fallback for code that isn't in a markdown block
-    return model_response.strip()
+    # If no code blocks found, try to extract code after common prefixes
+    if "Here is the solution:" in response or "Here's the solution:" in response:
+        lines = response.split("\n")
+        code_lines = []
+        in_code = False
+        for line in lines:
+            if line.strip().startswith("def "):
+                in_code = True
+            if in_code:
+                code_lines.append(line)
+        if code_lines:
+            return "\n".join(code_lines).strip()
+    
+    # If all else fails, look for function definitions
+    if "def " in response:
+        # Find the first function definition and extract everything from there
+        idx = response.find("def ")
+        if idx != -1:
+            return response[idx:].strip()
+    
+    # Return the whole response as a last resort
+    return response.strip()
 
-def check_correctness(prompt: str, completion: str, test: str) -> Tuple[float, str]:
+
+def check_correctness(task_prompt: str, predicted_code: str, test_code: str, timeout: float = 3.0) -> Tuple[float, str]:
     """
-    Evaluates the generated code against the provided test cases with partial credit.
-    Returns a decimal score (0.0 to 1.0) based on the percentage of test cases that pass.
+    Check if the predicted code passes the test cases.
+    
+    Returns:
+        (score, result_string): score is 1.0 if passed, 0.0 if failed
     """
-    program = f"{prompt}\n{completion}\n{test}"
+    if not predicted_code or not predicted_code.strip():
+        return 0.0, "No code generated"
+    
+    # Combine the task prompt (function signature), predicted code, and test code
+    full_code = f"{task_prompt}\n{predicted_code}\n{test_code}\n\ncheck(candidate)"
+    
+    # Run the code in a subprocess with timeout
     try:
-        exec_globals = {}
-        exec(program, exec_globals)
-        return 1.0, "All tests passed"
-    except AssertionError as e:
-        # Try to run individual test cases to see how many pass
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+            f.write(full_code)
+            temp_file = f.name
+        
         try:
-            import ast
-            tree = ast.parse(test)
-            assert_count = 0
-            passed_count = 0
+            result = subprocess.run(
+                ['python', temp_file],
+                capture_output=True,
+                text=True,
+                timeout=timeout
+            )
             
-            # Count total assertions
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Assert):
-                    assert_count += 1
-            
-            # Try to run individual assertions
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Assert):
-                    try:
-                        # Create a minimal test environment
-                        test_env = exec_globals.copy()
-                        test_env['candidate'] = exec_globals.get('candidate', None)
-                        
-                        # Execute just this assertion
-                        exec(compile(ast.Module([node], []), '<string>', 'exec'), test_env)
-                        passed_count += 1
-                    except:
-                        pass
-            
-            if assert_count > 0:
-                score = passed_count / assert_count
-                return score, f"Partial credit: {passed_count}/{assert_count} tests passed"
+            if result.returncode == 0:
+                return 1.0, "Passed"
             else:
-                return 0.0, "No test cases found"
+                error_msg = result.stderr or result.stdout or "Unknown error"
+                return 0.0, f"Failed: {error_msg[:200]}"
+        finally:
+            import os
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
                 
-        except Exception as e:
-            return 0.0, f"Failed to parse test cases: {e}"
+    except subprocess.TimeoutExpired:
+        return 0.0, "Timeout"
     except Exception as e:
-        return 0.0, f"Execution failed: {type(e).__name__}: {e}"
+        return 0.0, f"Error: {str(e)[:200]}"
+

@@ -8,8 +8,9 @@ import asyncio
 from pathlib import Path
 import torch
 import copy
-from typing import List,Union,Literal
+from typing import List, Union, Literal
 import random
+
 # The following line is no longer necessary after installing with setup.py
 # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 sys.stdout.reconfigure(encoding='utf-8')
@@ -40,37 +41,73 @@ from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader as PyGDataLoader
 from torch_geometric.utils import dense_to_sparse
 
+# =========================
+# Tee logger for stdout/stderr
+# =========================
+
+class Tee:
+    """
+    A simple stream wrapper that writes everything to both the original
+    stream (stdout/stderr) and a log file. This way *all* prints and most
+    library prints are mirrored into the log.
+    """
+    def __init__(self, logfile_path: Path, stream):
+        self.stream = stream
+        # Open in append mode so reruns of the script don't nuke old logs
+        self.log_file = open(logfile_path, "a", encoding="utf-8")
+
+    def write(self, data):
+        # Some libraries may write bytes by mistake; guard for that
+        if isinstance(data, bytes):
+            data = data.decode("utf-8", errors="replace")
+        self.stream.write(data)
+        self.log_file.write(data)
+
+    def flush(self):
+        self.stream.flush()
+        self.log_file.flush()
+
+    def isatty(self):
+        # Preserve basic behavior for tools that check this
+        return self.stream.isatty()
+
+# (Optionally keep originals if you ever want to restore them)
+_ORIG_STDOUT = sys.stdout
+_ORIG_STDERR = sys.stderr
+
+
 def load_result(result_file):
     if not result_file.exists():
-        with open(result_file, 'w',encoding='utf-8') as file:
+        with open(result_file, 'w', encoding='utf-8') as file:
             json.dump([], file)
 
-    with open(result_file, 'r',encoding='utf-8') as file:
+    with open(result_file, 'r', encoding='utf-8') as file:
         data = json.load(file)
     return data
 
 def dataloader(data_list, batch_size, i_batch):
-    return data_list[i_batch*batch_size:i_batch*batch_size + batch_size]
-    
+    return data_list[i_batch * batch_size:i_batch * batch_size + batch_size]
+
 def parse_args():
     parser = argparse.ArgumentParser(description="GDesigner Experiments on humaneval")
     parser.add_argument("--dataset_json", type=str, default="datasets/humaneval/humaneval-py.jsonl")
     parser.add_argument("--llm_name", type=str, default="gpt-4o")
     parser.add_argument('--mode', type=str, default='FullConnected',
-                        choices=['DirectAnswer', 'FullConnected', 'Random', 'Chain','Debate','Layered','Star', 'GTD'],
+                        choices=['DirectAnswer', 'FullConnected', 'Random', 'Chain', 'Debate', 'Layered', 'Star', 'GTD'],
                         help="Mode of operation. Default is 'FullConnected'.")
-    parser.add_argument('--lr', type=float, default=0.1,help="learning rate")
-    parser.add_argument('--batch_size', type=int, default=2,help="batch size")
-    parser.add_argument('--num_rounds',type=int,default=1,help="Number of optimization/inference rounds for one query")
-    parser.add_argument('--num_iterations', type=int, default=10,help="The num of training iterations.")
-    parser.add_argument('--domain', type=str, default="humaneval",help="Domain (the same as dataset name), default 'humaneval'")
-    parser.add_argument('--agent_names', nargs='+', type=str, default=['SeniorSoftwareEngineer', 'TDDExpert', 'CodeReviewer'],
+    parser.add_argument('--lr', type=float, default=0.1, help="learning rate")
+    parser.add_argument('--batch_size', type=int, default=2, help="batch size")
+    parser.add_argument('--num_rounds', type=int, default=1, help="Number of optimization/inference rounds for one query")
+    parser.add_argument('--num_iterations', type=int, default=10, help="The num of training iterations.")
+    parser.add_argument('--domain', type=str, default="humaneval", help="Domain (the same as dataset name), default 'humaneval'")
+    parser.add_argument('--agent_names', nargs='+', type=str,
+                        default=['SeniorSoftwareEngineer', 'TDDExpert', 'CodeReviewer'],
                         help='Specify agent names as a list of strings')
     parser.add_argument('--agent_nums', nargs='+', type=int, default=[1, 1, 1],
                         help='Specify the number of agents for each name in agent_names')
     parser.add_argument('--decision_method', type=str, default='FinalAnswer',
                         help='The decison method of the GDesigner')
-    
+
     # GTD Specific Arguments
     gtd_group = parser.add_argument_group('GTD Mode Options')
     gtd_group.add_argument('--gtd_node_feat_dim', type=int, default=384)
@@ -88,17 +125,17 @@ def parse_args():
     gtd_group.add_argument('--gtd-proxy-model-path', type=str, default='proxy_model_humaneval.pth')
     gtd_group.add_argument('--gtd-diffusion-model-path', type=str, default='diffusion_model_humaneval.pth')
     gtd_group.add_argument('--gtd-epochs', type=int, default=10)
-    
+
     # Add missing GNN/MLP hyperparameter arguments
     parser.add_argument('--gnn_hidden_dim', type=int, default=32)
     parser.add_argument('--gnn_layers', type=int, default=2)
     parser.add_argument('--mlp_hidden_dim', type=int, default=64)
-    
+
     # Add missing GTDFramework hyperparameter arguments
     parser.add_argument('--time_embed_dim', type=int, default=128)
     parser.add_argument('--gt_num_layers', type=int, default=2)
     parser.add_argument('--gt_num_heads', type=int, default=2)
-    
+
     args = parser.parse_args()
     return args
 
@@ -118,7 +155,10 @@ async def generate_initial_dataset(args, dataset):
             'star': [[1 if i == 0 and j > 0 else 0 for j in range(n)] for i in range(n)],
         }
         for i in range(3):
-            topologies[f'random_{i}'] = [[random.randint(0, 1) if i != j else 0 for j in range(n)] for i in range(n)]
+            topologies[f'random_{i}'] = [
+                [random.randint(0, 1) if i != j else 0 for j in range(n)]
+                for i in range(n)
+            ]
         return topologies
 
     static_topologies = generate_static_topologies(num_nodes)
@@ -128,24 +168,30 @@ async def generate_initial_dataset(args, dataset):
         if i >= args.gtd_datagen_limit:
             print(f"Reached data generation limit ({args.gtd_datagen_limit} records).")
             break
-        
+
         task_prompt = record["task"]
         test_code = record["test"]
         task_condition_embedding = get_sentence_embedding(task_prompt)
-        
+
         task_preview = task_prompt.replace('\n', ' ')[:80]
         print(f"\nProcessing record {i}: {task_preview}...")
 
         for name, topology_matrix in static_topologies.items():
             print(f"  Testing topology: {name}")
-            gdesigner_graph = Graph(args.domain, args.llm_name, agent_names_list, "FinalDirect", fixed_spatial_masks=topology_matrix)
+            gdesigner_graph = Graph(
+                args.domain,
+                args.llm_name,
+                agent_names_list,
+                "FinalDirect",
+                fixed_spatial_masks=topology_matrix
+            )
             raw_answer, _ = await gdesigner_graph.arun({"task": task_prompt}, args.num_rounds)
-            
+
             predicted_code = humaneval_get_predict(raw_answer[0])
             score, _ = check_correctness(task_prompt, predicted_code, test_code)
             utility = score
             cost = sum(sum(row) for row in topology_matrix)
-            
+
             data_point = {
                 'graph': topology_matrix,
                 'condition': task_condition_embedding.tolist(),
@@ -161,8 +207,6 @@ async def generate_initial_dataset(args, dataset):
 
 async def train_gtd_models(args):
     """PHASE 2: Train the Proxy and Diffusion models from the generated dataset."""
-    # (This function is identical to run_gsm8k.py and can be refactored)
-    # ... implementation is the same ...
     print(f"--- Starting Phase 2: Training GTD Models from {args.gtd_dataset_path} ---")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -180,10 +224,13 @@ async def train_gtd_models(args):
                 x=torch.tensor(item['node_features'], dtype=torch.float),
                 edge_index=edge_index,
                 condition=torch.tensor(item['condition'], dtype=torch.float).unsqueeze(0),
-                true_rewards=torch.tensor([rewards['utility'], rewards['cost']], dtype=torch.float).unsqueeze(0)
+                true_rewards=torch.tensor(
+                    [rewards['utility'], rewards['cost']],
+                    dtype=torch.float
+                ).unsqueeze(0)
             )
             proxy_data_list.append(proxy_data_item)
-            
+
             # For Diffusion Model (only use high-quality graphs)
             if rewards['utility'] >= 0.0:
                 diffusion_A0_list.append(item['graph'])
@@ -224,7 +271,7 @@ async def train_gtd_models(args):
             optimizer.step()
             total_loss += loss.item()
         print(f"Epoch {epoch+1}/{args.gtd_epochs}, Proxy Model Loss: {total_loss / len(pyg_dataloader):.4f}")
-    
+
     torch.save(proxy_model.state_dict(), args.gtd_proxy_model_path)
     print(f"--- Saved trained Proxy Model to {args.gtd_proxy_model_path} ---")
 
@@ -239,7 +286,7 @@ async def train_gtd_models(args):
         diffusion_num_timesteps=args.gtd_diffusion_steps,
         device=device
     )
-    
+
     # Ensure we have data for training, even if all are low quality
     if not diffusion_A0_list:
         # Use all available data if no high-quality data exists
@@ -249,7 +296,7 @@ async def train_gtd_models(args):
                 diffusion_A0_list.append(item['graph'])
                 diffusion_nodes_list.append(item['node_features'])
                 diffusion_cond_list.append(item['condition'])
-    
+
     if diffusion_A0_list:  # Only train if we have any data at all
         diffusion_dataset = TensorDataset(
             torch.tensor(diffusion_A0_list, dtype=torch.float),
@@ -257,13 +304,16 @@ async def train_gtd_models(args):
             torch.tensor(diffusion_cond_list, dtype=torch.float)
         )
         diffusion_dataloader = DataLoader(diffusion_dataset, batch_size=16, shuffle=True)
-        
+
         print("\n--- Training Diffusion Model ---")
-        diffusion_model.train_diffusion_model(dataloader=diffusion_dataloader, epochs=args.gtd_epochs, learning_rate=1e-4)
-    
+        diffusion_model.train_diffusion_model(
+            dataloader=diffusion_dataloader,
+            epochs=args.gtd_epochs,
+            learning_rate=1e-4
+        )
+
     torch.save(diffusion_model.diffusion_model.state_dict(), args.gtd_diffusion_model_path)
     print(f"--- Saved trained Diffusion Model to {args.gtd_diffusion_model_path} ---")
-
 
 async def run_gtd_experiment(args, dataset):
     """PHASE 3: Main logic for running experiments with a pre-trained GTD Framework."""
@@ -285,7 +335,7 @@ async def run_gtd_experiment(args, dataset):
     proxy_model.load_state_dict(torch.load(args.gtd_proxy_model_path))
     proxy_model.to(device)
     proxy_model.eval()
-    
+
     proxy_model.reward_component_names = ['utility', 'cost']
     macp_weights = {'utility': 1.0, 'cost': -0.1}
 
@@ -314,66 +364,102 @@ async def run_gtd_experiment(args, dataset):
 
     current_time = Time.instance().value or time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
     Time.instance().value = current_time
-    result_dir = Path(f"{GDesigner_ROOT}/result/gtd_{args.domain}")
-    result_dir.mkdir(parents=True, exist_ok=True)
-    result_file = result_dir / f"{args.llm_name}_{current_time}.json"
-    
+    result_file = Path(
+        GDesigner_ROOT,
+        "result",
+        f"gtd_{args.domain}",
+        f"{args.llm_name.replace('/', '_')}_{time.strftime('%Y%m%d-%H%M%S')}.json"
+    )
+    result_file.parent.mkdir(parents=True, exist_ok=True)
+
     num_batches = int(len(dataset) / args.batch_size)
     total_solved, total_executed = (0, 0)
 
     for i_batch in range(num_batches):
-        print(f"GTD Batch {i_batch}", 80*'-')
+        print(f"GTD Batch {i_batch}", 80 * '-')
         current_batch = dataloader(dataset, args.batch_size, i_batch)
         if not current_batch:
             break
-        
+
         for record in current_batch:
             task_prompt = record["task"]
             test_code = record["test"]
 
-            task_condition_embedding = torch.tensor(get_sentence_embedding(task_prompt)).float().unsqueeze(0).to(device)
+            task_condition_embedding = torch.tensor(
+                get_sentence_embedding(task_prompt)
+            ).float().unsqueeze(0).to(device)
 
             generated_A0_probs = gtd_framework.generate_graphs(
-                num_graphs=1, num_nodes=num_nodes,
+                num_graphs=1,
+                num_nodes=num_nodes,
                 node_features=node_features_base.unsqueeze(0),
-                task_condition=task_condition_embedding, use_guidance=True
+                task_condition=task_condition_embedding,
+                use_guidance=True
             )
             generated_adj_matrix = (generated_A0_probs.squeeze(0) > 0.5).int()
 
-            gdesigner_graph = Graph(args.domain, args.llm_name, agent_names_list, "FinalDirect", fixed_spatial_masks=generated_adj_matrix.tolist())
+            gdesigner_graph = Graph(
+                args.domain,
+                args.llm_name,
+                agent_names_list,
+                "FinalDirect",
+                fixed_spatial_masks=generated_adj_matrix.tolist()
+            )
 
             input_dict = {"task": task_prompt}
             raw_answer, _ = await gdesigner_graph.arun(input_dict, args.num_rounds)
-            
+
             predicted_code = humaneval_get_predict(raw_answer[0])
             score, result_str = check_correctness(task_prompt, predicted_code, test_code)
-            
+
             total_solved += score
             total_executed += 1
             pass_rate = total_solved / total_executed if total_executed > 0 else 0
-            
+
             task_preview = task_prompt.replace('\n', ' ')[:50]
             print(f"Query: {task_preview}... | Score: {score:.3f} | Pass@1: {pass_rate:.3f}")
 
-        data = load_result(result_file)
-        updated_item = {
-            "Question": task_prompt, "Test": test_code, "Response": raw_answer[0],
-            "Attempt_Code": predicted_code, "Solved": score, "Result_Str": result_str,
-            "Generated_Topology": generated_adj_matrix.tolist(),
-            "Total_solved": total_solved, "Total_executed": total_executed, "Pass_Rate": pass_rate
-        }
-        data.append(updated_item)
-        with open(result_file, 'w', encoding='utf-8') as file:
-            json.dump(data, file, indent=4)
-            
-        print(f"Cost {Cost.instance().value}")
+            # Log each record individually so you can later check which tasks failed
+            data = load_result(result_file)
+            updated_item = {
+                "Question": task_prompt,
+                "Test": test_code,
+                "Response": raw_answer[0],
+                "Attempt_Code": predicted_code,
+                "Solved": score,
+                "Result_Str": result_str,
+                "Generated_Topology": generated_adj_matrix.tolist(),
+                "Total_solved": total_solved,
+                "Total_executed": total_executed,
+                "Pass_Rate": pass_rate
+            }
+            data.append(updated_item)
+            with open(result_file, 'w', encoding='utf-8') as file:
+                json.dump(data, file, indent=4)
+
+            print(f"Cost {Cost.instance().value}")
 
 async def main():
     args = parse_args()
-    
+
+    # =========================
+    # Set up logging (tee) here
+    # =========================
+    log_dir = Path(GDesigner_ROOT, "logs", f"gtd_{args.domain}")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"{args.llm_name.replace('/', '_')}_{time.strftime('%Y%m%d-%H%M%S')}.log"
+
+    global _ORIG_STDOUT, _ORIG_STDERR
+    _ORIG_STDOUT = sys.stdout
+    _ORIG_STDERR = sys.stderr
+    sys.stdout = Tee(log_file, _ORIG_STDOUT)
+    sys.stderr = Tee(log_file, _ORIG_STDERR)
+
+    print(f"[LOGGER] Mirroring stdout/stderr to log file: {log_file}")
+
     dataset = JSONLReader.parse_file(args.dataset_json)
     dataset = humaneval_data_process(dataset)
-    
+
     if args.gtd_generate_data:
         await generate_initial_dataset(args, dataset)
     elif args.gtd_train_models:
