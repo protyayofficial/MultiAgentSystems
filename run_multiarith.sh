@@ -4,7 +4,7 @@ set -e
 set -x
 
 # Configuration
-LLM_NAME="Qwen/Qwen3-4B-Thinking-2507"
+LLM_NAME="Qwen/Qwen3-8B"
 DOMAIN="multiarith"
 AGENT_NAMES="MathSolver"
 AGENT_NUMS=4
@@ -13,7 +13,7 @@ BATCH_SIZE=2
 TRAIN_DATASET="datasets/MultiArith/MultiArith_train.json"
 TEST_DATASET="datasets/MultiArith/MultiArith_test.json"
 
-OUTPUT_DIR="result/gtd_multiarith"
+OUTPUT_DIR="result_Qwen_Qwen3-8B/gtd_multiarith"
 mkdir -p "$OUTPUT_DIR"
 
 # Phase 1: Generate dataset

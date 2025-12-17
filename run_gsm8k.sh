@@ -4,7 +4,7 @@ set -e
 set -x
 
 # --- Configuration ---
-LLM_NAME="Qwen/Qwen3-4B-Thinking-2507"
+LLM_NAME="Qwen/Qwen3-8B"
 DOMAIN="gsm8k"
 AGENT_NAMES="MathSolver"
 AGENT_NUMS=4
@@ -14,7 +14,7 @@ BATCH_SIZE=2
 TRAIN_DATASET_JSON="datasets/gsm8k/gsm8k_train.jsonl"  # For Phase 1 & 2: data generation + training
 TEST_DATASET_JSON="datasets/gsm8k/gsm8k_test.jsonl"    # For Phase 3: evaluation
 
-OUTPUT_DIR="result_Qwen3_8B/gtd_gsm8k"
+OUTPUT_DIR="result_Qwen_Qwen3-8B/gtd_gsm8k"
 
 mkdir -p "$OUTPUT_DIR"
 
