@@ -4,7 +4,7 @@ set -e
 set -x
 
 # --- Configuration ---
-LLM_NAME="Qwen/Qwen3-8B"
+LLM_NAME="Qwen/Qwen3-4B-Instruct-2507"
 # If you want to try a larger Qwen model, you can switch to:
 # LLM_NAME="Qwen/Qwen3-8B"
 DOMAIN="math"
@@ -16,7 +16,7 @@ BATCH_SIZE=2
 TRAIN_DATASET_JSON="datasets/MATH/MATH_train.jsonl"      # For Phase 1 & 2: data generation + training
 TEST_DATASET_JSON="datasets/MATH/MATH_test500.jsonl"     # For Phase 3: evaluation
 
-OUTPUT_DIR="result_Qwen_Qwen3-8B/gtd_math"
+OUTPUT_DIR="result_Qwen_Qwen3-4B-Instruct-2507/gtd_math"
 
 mkdir -p "$OUTPUT_DIR"
 

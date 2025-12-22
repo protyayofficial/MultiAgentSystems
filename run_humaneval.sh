@@ -4,7 +4,7 @@ set -e
 set -x
 
 # --- Configuration ---
-LLM_NAME="Qwen/Qwen3-8B"
+LLM_NAME="Qwen/Qwen3-4B-Instruct-2507"
 DOMAIN="humaneval"
 AGENT_NAMES="Algorithm_Designer Bug_Fixer Programming_Expert Test_Analyst"
 AGENT_NUMS="1 1 1 1"
@@ -13,7 +13,7 @@ BATCH_SIZE=2
 TRAIN_DATASET_JSON="datasets/humaneval/humaneval-train.jsonl"
 TEST_DATASET_JSON="datasets/humaneval/humaneval-test.jsonl"
 
-OUTPUT_DIR="result_Qwen_Qwen3-8B/gtd_humaneval"
+OUTPUT_DIR="result_Qwen_Qwen3-4B-Instruct-2507/gtd_humaneval"
 
 mkdir -p "$OUTPUT_DIR"
 
